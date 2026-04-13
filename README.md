@@ -110,7 +110,7 @@ VITE_FSU4C_API_KEY=<from Cloud Run secret manager>
 
 ## FSU Data Services (chimera-v4 GCP project)
 
-All FSUs currently in Python/FastAPI. Migrating to Kotlin/Springboot — dashboard wiring is data-only so the switchover will not break the frontend.
+All FSUs currently in Python/FastAPI. Migrating to Kotlin/Springboot — dashboard wiring is data-only so the switchover will not break the frontend..
 
 | FSU | Purpose | Auth Header | Cloud Run URL |
 |-----|---------|-------------|---------------|
