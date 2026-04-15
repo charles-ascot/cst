@@ -17,6 +17,7 @@ export const NAV_ITEMS = [
   { id: 'engine',         label: 'Betting Engine',  path: '/engine',         icon: '⬡' },
   { id: 'operations',     label: 'Operations',      path: '/operations',     icon: '◎' },
   { id: 'dashboards',     label: 'Dashboards',      path: '/dashboards',     icon: '▦' },
+  { id: 'fsu-library',    label: 'FSU Library',     path: '/fsu-library',    icon: '⊞' },
   { id: 'reporting',      label: 'Reporting',       path: '/reporting',      icon: '◱' },
   { id: 'accounting',     label: 'Accounting',      path: '/accounting',     icon: '◇' },
 ]
