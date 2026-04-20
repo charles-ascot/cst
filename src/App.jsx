@@ -6,6 +6,7 @@ import Strategy from './pages/Strategy.jsx'
 import BettingEngine from './pages/BettingEngine.jsx'
 import Operations from './pages/Operations.jsx'
 import Dashboards from './pages/Dashboards.jsx'
+import StrategyConfigurator from './pages/StrategyConfigurator.jsx'
 import FSULibrary from './pages/FSULibrary.jsx'
 import FSU1E from './pages/FSU1E.jsx'
 import Reporting from './pages/Reporting.jsx'
@@ -23,6 +24,7 @@ export default function App() {
       }>
         <Route index element={<Navigate to="/strategy" replace />} />
         <Route path="strategy"   element={<Strategy />} />
+        <Route path="strategy/configurator" element={<StrategyConfigurator />} />
         <Route path="engine"     element={<BettingEngine />} />
         <Route path="operations" element={<Operations />} />
         <Route path="dashboards" element={<Dashboards />} />

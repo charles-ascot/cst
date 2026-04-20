@@ -1,6 +1,8 @@
-import { GOLD, GOLD_DIM, BORDER, BG_PANEL, FONT_SERIF, FONT_UI, FONT_MONO, TEXT_DIM } from '../theme.js'
+import { useNavigate } from 'react-router-dom'
+import { GOLD, GOLD_DIM, BORDER, BORDER_ACTIVE, BG_PANEL, FONT_SERIF, FONT_UI, FONT_MONO, TEXT, TEXT_DIM } from '../theme.js'
 
 export default function PlaceholderPage({ title, icon, description, modules = [] }) {
+  const navigate = useNavigate()
   return (
     <div style={{ animation: 'fadeIn 0.4s ease' }}>
       {/* Page header */}
@@ -38,10 +40,11 @@ export default function PlaceholderPage({ title, icon, description, modules = []
             border: `1px solid ${BORDER}`,
             padding: '20px 22px',
             position: 'relative',
-            cursor: 'default',
+            cursor: mod.path ? 'pointer' : 'default',
             transition: 'border-color 0.2s',
           }}
-          onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,146,74,0.45)'}
+          onClick={() => mod.path && navigate(mod.path)}
+          onMouseEnter={e => e.currentTarget.style.borderColor = mod.path ? BORDER_ACTIVE : 'rgba(184,146,74,0.45)'}
           onMouseLeave={e => e.currentTarget.style.borderColor = BORDER}
           >
             {/* Corner accent */}
@@ -77,10 +80,10 @@ export default function PlaceholderPage({ title, icon, description, modules = []
             }}>
               <span style={{
                 width: 5, height: 5, borderRadius: '50%',
-                background: mod.status === 'live' ? '#3ddc84' : GOLD_DIM,
+                background: mod.status === 'live' ? '#3ddc84' : mod.status === 'demo' ? GOLD : GOLD_DIM,
                 display: 'inline-block',
               }} />
-              {mod.status === 'live' ? 'LIVE' : 'PENDING'}
+              {mod.status === 'live' ? 'LIVE' : mod.status === 'demo' ? 'DEMO  →' : 'PENDING'}
             </div>
           </div>
         ))}

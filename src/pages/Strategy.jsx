@@ -8,6 +8,7 @@ export default function Strategy() {
       { name: 'Rule Parameters', desc: 'Per-rule threshold and weight configuration', status: 'pending' },
       { name: 'Strategy Versioning', desc: 'Change history, SCN register, approval workflow', status: 'pending' },
       { name: 'Backtesting', desc: 'Historical performance simulation against rule families', status: 'pending' },
+      { name: 'Configurator', desc: 'Chimera Drag & Drop Strategy Configurator', status: 'demo', path: '/strategy/configurator' },
     ]}
   />
 }

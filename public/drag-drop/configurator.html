@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chimera Sports Trading — Strategy Configurator</title>
+<style>
+  :root {
+    --bg: #ffffff; --bg2: #f5f5f5; --bg3: #eaeaea; --text: #1a1a2e; --text2: #666666; --text3: #999999;
+    --border: rgba(0,0,0,0.12); --border2: rgba(0,0,0,0.25);
+    --info-bg: #E6F1FB; --info-text: #0C447C; --info-border: #85B7EB;
+    --purple-bg: #EEEDFE; --purple-text: #3C3489; --purple-border: #AFA9EC;
+    --amber-bg: #FAEEDA; --amber-text: #633806; --amber-border: #FAC775;
+    --teal-bg: #E1F5EE; --teal-text: #085041; --teal-border: #5DCAA5;
+    --coral-bg: #FAECE7; --coral-text: #712B13; --coral-border: #F0997B;
+    --navy: #1A3A5C; --accent: #2E6DA4; --radius: 12px; --radius-sm: 8px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a2e; --bg2: #252540; --bg3: #2f2f4a; --text: #e8e0d0; --text2: #8a8070; --text3: #5a5a5a;
+      --border: rgba(255,255,255,0.1); --border2: rgba(255,255,255,0.2);
+      --info-bg: #042C53; --info-text: #B5D4F4; --info-border: #185FA5;
+      --purple-bg: #26215C; --purple-text: #CECBF6; --purple-border: #534AB7;
+      --amber-bg: #412402; --amber-text: #FAC775; --amber-border: #854F0B;
+      --teal-bg: #04342C; --teal-text: #9FE1CB; --teal-border: #0F6E56;
+      --coral-bg: #4A1B0C; --coral-text: #F5C4B3; --coral-border: #993C1D;
+      --navy: #B5D4F4; --accent: #85B7EB;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 20px; max-width: 720px; margin: 0 auto; }
+  .header { text-align: center; margin-bottom: 24px; padding: 20px 0; border-bottom: 2px solid var(--accent); }
+  .header h1 { font-size: 22px; font-weight: 600; color: var(--navy); margin-bottom: 4px; }
+  .header p { font-size: 13px; color: var(--text2); }
+  .tagline { font-size: 12px; color: var(--accent); font-style: italic; margin-top: 8px; }
+  .zone { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; margin-bottom: 12px; min-height: 64px; transition: background 0.2s, border-color 0.2s; }
+  .zone.over { background: var(--info-bg); border-color: var(--info-border); }
+  .zone-label { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .zone-num { width: 22px; height: 22px; border-radius: 50%; background: var(--bg2); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: var(--text2); flex-shrink: 0; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 400; cursor: grab; user-select: none; margin: 3px; transition: transform 0.15s, opacity 0.15s; border: 1px solid transparent; touch-action: none; }
+  .chip:active { cursor: grabbing; transform: scale(1.05); }
+  .chip.data { background: var(--info-bg); color: var(--info-text); border-color: var(--info-border); }
+  .chip.rule { background: var(--purple-bg); color: var(--purple-text); border-color: var(--purple-border); }
+  .chip.control { background: var(--amber-bg); color: var(--amber-text); border-color: var(--amber-border); }
+  .chip.strategy { background: var(--teal-bg); color: var(--teal-text); border-color: var(--teal-border); }
+  .chip.exec { background: var(--coral-bg); color: var(--coral-text); border-color: var(--coral-border); }
+  .var-badge { font-size: 10px; background: var(--bg3); color: var(--text2); padding: 2px 6px; border-radius: 4px; margin-left: 2px; }
+  .funnel { text-align: center; margin-bottom: 16px; }
+  .arrow-down { text-align: center; color: var(--text3); font-size: 18px; margin: 4px 0; }
+  .palette { background: var(--bg2); border-radius: var(--radius); padding: 16px; margin-bottom: 20px; }
+  .palette-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 12px; }
+  .palette-cat { font-size: 11px; color: var(--text2); margin: 10px 0 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+  .palette-row { display: flex; flex-wrap: wrap; gap: 4px; }
+  .output-zone { background: var(--bg2); border: 1px dashed var(--border2); }
+  .config-hint { font-size: 12px; color: var(--text3); font-style: italic; margin-top: 4px; }
+  .instructions { background: var(--bg2); border-radius: var(--radius); padding: 16px; margin-bottom: 20px; font-size: 13px; color: var(--text2); line-height: 1.6; }
+  .instructions strong { color: var(--text); }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; font-size: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 4px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+  .reset-btn { display: inline-block; margin-top: 12px; padding: 8px 16px; font-size: 13px; background: transparent; border: 1px solid var(--border2); border-radius: var(--radius-sm); color: var(--text2); cursor: pointer; }
+  .reset-btn:hover { background: var(--bg2); }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>CHIMERA SPORTS TRADING</h1>
+  <p>Strategy Pipeline Configurator — Concept Demo</p>
+  <div class="tagline">Born from complexity. Engineered for certainty.</div>
+</div>
+
+<div class="instructions">
+  <strong>How this works:</strong> Drag any component from the palette below and drop it into any layer of the pipeline. The layer determines when the component fires — Layer 1 fires first (guard rails), Layer 5 fires last (execution). The order within each layer determines priority. Double-click any placed component to remove it. The grey badges show configurable variables that can be edited.
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--info-border)"></div> Data source</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--purple-border)"></div> Rule</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--amber-border)"></div> Control</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--teal-border)"></div> Strategy</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--coral-border)"></div> Execution</div>
+</div>
+
+<div class="funnel">
+  <svg viewBox="0 0 300 90" style="max-width:240px" xmlns="http://www.w3.org/2000/svg">
+    <path d="M30 12 L270 12 L210 78 L90 78 Z" fill="var(--info-bg)" stroke="var(--info-border)" stroke-width="1" rx="4"/>
+    <text x="150" y="36" text-anchor="middle" font-size="13" font-weight="600" fill="var(--info-text)" font-family="-apple-system,sans-serif">MARKET INTELLIGENCE</text>
+    <text x="150" y="56" text-anchor="middle" font-size="11" fill="var(--text2)" font-family="-apple-system,sans-serif">FSU1A + FSU1E + FSU1X + FSU1Y</text>
+  </svg>
+</div>
+<div class="arrow-down">&#x25BC;</div>
+
+<div class="palette">
+  <div class="palette-title">Available components — drag into any layer below</div>
+
+  <div class="palette-cat">Data sources</div>
+  <div class="palette-row" id="p-data">
+    <div class="chip data" draggable="true">&#9673; Betfair live stream</div>
+    <div class="chip data" draggable="true">&#9673; Racing API odds</div>
+    <div class="chip data" draggable="true">&#9673; Bookmaker prices</div>
+    <div class="chip data" draggable="true">&#9673; RPR ratings</div>
+    <div class="chip data" draggable="true">&#9673; Historic results</div>
+    <div class="chip data" draggable="true">&#9673; Timeform data</div>
+  </div>
+
+  <div class="palette-cat">Rules (Mark's rule set)</div>
+  <div class="palette-row" id="p-rules">
+    <div class="chip rule" draggable="true">&#9632; Rule 1 <span class="var-badge">odds band</span></div>
+    <div class="chip rule" draggable="true">&#9632; Rule 2 <span class="var-badge">threshold</span></div>
+    <div class="chip rule" draggable="true">&#9632; Rule 3A <span class="var-badge">uplift %</span></div>
+    <div class="chip rule" draggable="true">&#9632; Rule 3B <span class="var-badge">floor pts</span></div>
+    <div class="chip rule" draggable="true">&#9632; Joint favourite</div>
+    <div class="chip rule" draggable="true">&#9632; RPR overlay <span class="var-badge">+/- %</span></div>
+    <div class="chip rule" draggable="true">&#9632; Drift stake increase <span class="var-badge">cap 15%</span></div>
+    <div class="chip rule" draggable="true">&#9632; Point rules <span class="var-badge">by band</span></div>
+    <div class="chip rule" draggable="true">&#9632; Joint fav split <span class="var-badge">JOFS</span></div>
+  </div>
+
+  <div class="palette-cat">Controls (guard rails)</div>
+  <div class="palette-row" id="p-controls">
+    <div class="chip control" draggable="true">&#9650; Short price control <span class="var-badge">1.33-1.75</span></div>
+    <div class="chip control" draggable="true">&#9650; TOP2 concentration <span class="var-badge">block</span></div>
+    <div class="chip control" draggable="true">&#9650; BMEX dislocation <span class="var-badge">severity</span></div>
+    <div class="chip control" draggable="true">&#9650; Daily risk cap <span class="var-badge">max exp</span></div>
+    <div class="chip control" draggable="true">&#9650; NO_BET_BAD_EXEC</div>
+    <div class="chip control" draggable="true">&#9650; Multi-fav risk layer</div>
+    <div class="chip control" draggable="true">&#9650; Compression zone <span class="var-badge">1.05-1.07</span></div>
+  </div>
+
+  <div class="palette-cat">Strategies</div>
+  <div class="palette-row" id="p-strat">
+    <div class="chip strategy" draggable="true">&#9670; Market state classifier <span class="var-badge">A-E</span></div>
+    <div class="chip strategy" draggable="true">&#9670; Staged lay execution <span class="var-badge">5 stages</span></div>
+    <div class="chip strategy" draggable="true">&#9670; Full-lay override <span class="var-badge">FLO</span></div>
+    <div class="chip strategy" draggable="true">&#9670; Recovery mode <span class="var-badge">>12%</span></div>
+    <div class="chip strategy" draggable="true">&#9670; Fast compression <span class="var-badge">&lt;1.30</span></div>
+    <div class="chip strategy" draggable="true">&#9670; Market regime <span class="var-badge">3 types</span></div>
+    <div class="chip strategy" draggable="true">&#9670; Snapback scalping <span class="var-badge">A+</span></div>
+  </div>
+
+  <div class="palette-cat">Execution</div>
+  <div class="palette-row" id="p-exec">
+    <div class="chip exec" draggable="true">&#9679; Ladder hierarchy <span class="var-badge">3 rungs</span></div>
+    <div class="chip exec" draggable="true">&#9679; Profit exit 80%</div>
+    <div class="chip exec" draggable="true">&#9679; Outcome-agnostic exit</div>
+    <div class="chip exec" draggable="true">&#9679; Instant deploy mode</div>
+    <div class="chip exec" draggable="true">&#9679; In-play hedge</div>
+    <div class="chip exec" draggable="true">&#9679; Drifter rule <span class="var-badge">small fields</span></div>
+  </div>
+</div>
+
+<div class="zone" id="L1">
+  <div class="zone-label"><span class="zone-num">1</span> Layer 1 — Pre-qualification (fires first)</div>
+  <div class="config-hint">Drop guard rails here. These block before any strategy logic runs.</div>
+</div>
+<div class="arrow-down">&#x25BC;</div>
+
+<div class="zone" id="L2">
+  <div class="zone-label"><span class="zone-num">2</span> Layer 2 — Market assessment</div>
+  <div class="config-hint">Drop classifiers and data sources here. Determines market regime before rules apply.</div>
+</div>
+<div class="arrow-down">&#x25BC;</div>
+
+<div class="zone" id="L3">
+  <div class="zone-label"><span class="zone-num">3</span> Layer 3 — Rule application</div>
+  <div class="config-hint">Drop Mark's rules here. Order determines priority — first rule fires first.</div>
+</div>
+<div class="arrow-down">&#x25BC;</div>
+
+<div class="zone" id="L4">
+  <div class="zone-label"><span class="zone-num">4</span> Layer 4 — Strategy selection</div>
+  <div class="config-hint">Drop strategy modules here. These determine HOW the bet is placed.</div>
+</div>
+<div class="arrow-down">&#x25BC;</div>
+
+<div class="zone" id="L5">
+  <div class="zone-label"><span class="zone-num">5</span> Layer 5 — Execution and exit</div>
+  <div class="config-hint">Drop execution modules here. Controls position management after entry.</div>
+</div>
+<div class="arrow-down">&#x25BC;</div>
+
+<div class="zone output-zone">
+  <div class="zone-label"><span class="zone-num">&#x2713;</span> Output — Betfair Exchange</div>
+  <div style="font-size:13px;color:var(--text2)">Bet placed (or blocked) based on everything above. Full audit trail logged.</div>
+</div>
+
+<div style="text-align:center;margin-top:16px">
+  <button class="reset-btn" onclick="resetAll()">Reset all layers</button>
+</div>
+
+<div style="text-align:center;margin-top:24px;padding-top:16px;border-top:1px solid var(--border)">
+  <div style="font-size:12px;color:var(--text3);font-style:italic">Born from complexity. Engineered for certainty.</div>
+  <div style="font-size:11px;color:var(--text3);margin-top:4px">Chimera Sports Trading | Cape Berkshire Ltd | April 2026</div>
+</div>
+
+<script>
+let dragEl = null;
+
+function addDrag(chip) {
+  chip.addEventListener('dragstart', e => {
+    dragEl = chip;
+    e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => chip.style.opacity = '0.4', 0);
+  });
+  chip.addEventListener('dragend', () => {
+    if (dragEl) dragEl.style.opacity = '1';
+    dragEl = null;
+  });
+  chip.addEventListener('touchstart', e => {
+    dragEl = chip;
+    chip.style.opacity = '0.6';
+  }, {passive: true});
+}
+
+document.querySelectorAll('.chip').forEach(addDrag);
+
+document.querySelectorAll('.zone:not(.output-zone)').forEach(zone => {
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('over');
+    dropInto(zone);
+  });
+  zone.addEventListener('touchend', e => {
+    const touch = e.changedTouches[0];
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const targetZone = el?.closest('.zone:not(.output-zone)');
+    if (targetZone && dragEl) dropInto(targetZone);
+    if (dragEl) dragEl.style.opacity = '1';
+    dragEl = null;
+  });
+});
+
+function dropInto(zone) {
+  if (!dragEl) return;
+  const clone = dragEl.cloneNode(true);
+  clone.draggable = true;
+  addDrag(clone);
+  clone.addEventListener('dblclick', () => clone.remove());
+  clone.title = 'Double-click to remove';
+  zone.appendChild(clone);
+  dragEl.style.opacity = '1';
+  dragEl = null;
+}
+
+function resetAll() {
+  document.querySelectorAll('.zone:not(.output-zone)').forEach(zone => {
+    zone.querySelectorAll('.chip').forEach(c => c.remove());
+  });
+}
+</script>
+</body>
+</html>
