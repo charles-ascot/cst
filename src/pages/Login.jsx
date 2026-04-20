@@ -120,13 +120,7 @@ export default function Login() {
             {/* Logo */}
             <div style={{ textAlign: 'center', marginBottom: 52 }}>
               <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'center' }}>
-                <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
-                  <polygon points="26,4 48,40 4,40" stroke={GOLD} strokeWidth="1.2" fill="none"/>
-                  <polygon points="26,14 40,38 12,38" stroke={GOLD_DIM} strokeWidth="0.8" fill="none"/>
-                  <line x1="26" y1="4" x2="26" y2="40" stroke={GOLD} strokeWidth="0.6" opacity="0.4"/>
-                  <line x1="4" y1="40" x2="48" y2="40" stroke={GOLD} strokeWidth="0.6" opacity="0.4"/>
-                  <circle cx="26" cy="26" r="3" fill={GOLD} opacity="0.9"/>
-                </svg>
+                <img src="/chimera-logo.png" alt="Chimera" style={{ height: 80, width: 'auto', objectFit: 'contain' }} />
               </div>
               <div style={{ fontFamily: FONT_SERIF, fontSize: 42, fontWeight: 300, letterSpacing: '0.22em', color: '#f0e8d8', lineHeight: 1, marginBottom: 6 }}>CHIMERA</div>
               <div style={{ fontFamily: FONT_UI, fontSize: 11, fontWeight: 500, letterSpacing: '0.42em', color: GOLD, marginBottom: 14 }}>SPORTS TRADING</div>
