@@ -75,7 +75,7 @@ export default function Layout() {
             <img
               src="/chimera-logo.png"
               alt="Chimera"
-              style={{ height: collapsed ? 34 : 44, width: 'auto', flexShrink: 0, objectFit: 'contain' }}
+              style={{ height: collapsed ? 34 : 44, width: 'auto', flexShrink: 0, objectFit: 'contain', filter: 'invert(1) hue-rotate(180deg)' }}
             />
             {!collapsed && (
               <div style={{ marginTop: 10 }}>
