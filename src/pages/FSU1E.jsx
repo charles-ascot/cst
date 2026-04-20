@@ -27,26 +27,49 @@ function fmtNum(n) {
   return n.toLocaleString('en-GB')
 }
 
+function fmtBytes(b) {
+  if (b == null) return '—'
+  if (b > 1e12) return `${(b / 1e12).toFixed(1)} TB`
+  if (b > 1e9) return `${(b / 1e9).toFixed(1)} GB`
+  if (b > 1e6) return `${(b / 1e6).toFixed(1)} MB`
+  if (b > 1e3) return `${(b / 1e3).toFixed(1)} KB`
+  return `${b} B`
+}
+
 function fmtTs(ts) {
   if (!ts) return '—'
   const d = new Date(ts)
   return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
 }
 
-function fmtDate(ds) {
-  if (!ds) return '—'
-  return ds
+function fmtEta(secs) {
+  if (secs == null) return '—'
+  if (secs < 60) return `${secs}s`
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ${secs % 60}s`
+  const h = Math.floor(secs / 3600)
+  const m = Math.floor((secs % 3600) / 60)
+  if (h < 24) return `${h}h ${m}m`
+  const d = Math.floor(h / 24)
+  return `${d}d ${h % 24}h`
 }
 
 // ── Shared UI Components ─────────────────────────────────────────────────────
 
 const MODE_COLOURS = {
-  DOWNLOADING: '#3ddc84',
-  BACKFILL:    '#3ddc84',
-  SYNC:        '#64a0ff',
-  SYNCING:     '#64a0ff',
-  IDLE:        GOLD,
-  ERROR:       '#c05050',
+  IDLE:                 GOLD,
+  BACKFILL_RESULTS:     '#3ddc84',
+  BACKFILL_RACECARDS:   '#3ddc84',
+  BACKFILL_RACE_DETAIL: '#3ddc84',
+  ENTITY_DISCOVERY:     '#64a0ff',
+  BACKFILL_HORSES:      '#64a0ff',
+  BACKFILL_JOCKEYS:     '#64a0ff',
+  BACKFILL_TRAINERS:    '#64a0ff',
+  BACKFILL_OWNERS:      '#64a0ff',
+  BACKFILL_SIRES:       '#64a0ff',
+  BACKFILL_DAMS:        '#64a0ff',
+  BACKFILL_DAMSIRES:    '#64a0ff',
+  SYNC:                 '#d4aa6a',
+  ERROR:                '#c05050',
 }
 
 const HEALTH_COLOURS = {
@@ -55,8 +78,15 @@ const HEALTH_COLOURS = {
   error:    '#c05050',
 }
 
+const STATUS_COLOURS = {
+  complete:    '#3ddc84',
+  in_progress: '#64a0ff',
+  not_started: TEXT_DIM,
+}
+
 function StatusPill({ mode }) {
   const colour = MODE_COLOURS[mode] || GOLD_DIM
+  const active = mode && mode !== 'IDLE' && mode !== 'ERROR'
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -68,10 +98,9 @@ function StatusPill({ mode }) {
       <span style={{
         width: 6, height: 6, borderRadius: '50%',
         background: colour, boxShadow: `0 0 5px ${colour}`,
-        animation: (mode === 'DOWNLOADING' || mode === 'BACKFILL' || mode === 'SYNCING' || mode === 'SYNC')
-          ? 'blink 2s ease-in-out infinite' : 'none',
+        animation: active ? 'blink 2s ease-in-out infinite' : 'none',
       }} />
-      {mode || 'UNKNOWN'}
+      {(mode || 'UNKNOWN').replace(/_/g, ' ')}
     </span>
   )
 }
@@ -91,7 +120,7 @@ function StatusDot({ status }) {
   )
 }
 
-function Panel({ label, fsu, status, children }) {
+function Panel({ label, fsu, status, extra, children }) {
   return (
     <div style={{ border: `1px solid ${BORDER}`, background: BG_PANEL, marginBottom: 28 }}>
       <div style={{
@@ -109,7 +138,10 @@ function Panel({ label, fsu, status, children }) {
             </div>
           )}
         </div>
-        {status && <StatusDot status={status} />}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {extra}
+          {status && <StatusDot status={status} />}
+        </div>
       </div>
       {children}
     </div>
@@ -172,12 +204,24 @@ function InfoRow({ label, value, colour }) {
   )
 }
 
+function ProgressBar({ pct, colour }) {
+  const p = Math.min(Math.max(pct || 0, 0), 100)
+  return (
+    <div style={{ height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 1, flex: 1 }}>
+      <div style={{
+        height: '100%', borderRadius: 1,
+        width: `${p}%`,
+        background: colour || GOLD,
+        transition: 'width 1s ease',
+      }} />
+    </div>
+  )
+}
+
 function ActionButton({ label, colour, onClick, confirm: confirmMsg, disabled }) {
   const clr = colour || GOLD
   const handleClick = () => {
-    if (confirmMsg) {
-      if (!window.confirm(confirmMsg)) return
-    }
+    if (confirmMsg && !window.confirm(confirmMsg)) return
     onClick()
   }
   return (
@@ -201,128 +245,6 @@ function ActionButton({ label, colour, onClick, confirm: confirmMsg, disabled })
   )
 }
 
-function FormInput({ label, value, onChange, readOnly, type = 'text', mono }) {
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ fontFamily: FONT_MONO, fontSize: 8, letterSpacing: '0.2em', color: GOLD_DIM, marginBottom: 5 }}>
-        {label} {readOnly && <span style={{ color: TEXT_DIM }}>(READ-ONLY)</span>}
-      </div>
-      <input
-        type={type}
-        value={value || ''}
-        onChange={e => onChange && onChange(e.target.value)}
-        readOnly={readOnly}
-        style={{
-          width: '100%',
-          background: readOnly ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.25)',
-          border: `1px solid ${readOnly ? BORDER : BORDER_ACTIVE}`,
-          color: readOnly ? TEXT_DIM : TEXT,
-          fontFamily: mono ? FONT_MONO : FONT_UI,
-          fontSize: 11, letterSpacing: '0.04em',
-          padding: '8px 12px', outline: 'none',
-          transition: 'border-color 0.2s',
-          opacity: readOnly ? 0.7 : 1,
-        }}
-        onFocus={e => { if (!readOnly) e.currentTarget.style.borderColor = GOLD }}
-        onBlur={e => { if (!readOnly) e.currentTarget.style.borderColor = BORDER_ACTIVE }}
-      />
-    </div>
-  )
-}
-
-function FormSelect({ label, value, onChange, options, readOnly }) {
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ fontFamily: FONT_MONO, fontSize: 8, letterSpacing: '0.2em', color: GOLD_DIM, marginBottom: 5 }}>
-        {label} {readOnly && <span style={{ color: TEXT_DIM }}>(READ-ONLY)</span>}
-      </div>
-      <select
-        value={value || ''}
-        onChange={e => onChange && onChange(e.target.value)}
-        disabled={readOnly}
-        style={{
-          width: '100%',
-          background: readOnly ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.25)',
-          border: `1px solid ${readOnly ? BORDER : BORDER_ACTIVE}`,
-          color: readOnly ? TEXT_DIM : TEXT,
-          fontFamily: FONT_UI, fontSize: 11, letterSpacing: '0.04em',
-          padding: '8px 12px', outline: 'none',
-          opacity: readOnly ? 0.7 : 1,
-        }}
-      >
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
-      </select>
-    </div>
-  )
-}
-
-function FormToggle({ label, value, onChange }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-      <span style={{ fontFamily: FONT_MONO, fontSize: 8, letterSpacing: '0.2em', color: GOLD_DIM }}>
-        {label}
-      </span>
-      <button
-        onClick={() => onChange && onChange(!value)}
-        style={{
-          width: 36, height: 18, borderRadius: 9,
-          background: value ? `${GOLD}44` : 'rgba(255,255,255,0.06)',
-          border: `1px solid ${value ? GOLD : BORDER}`,
-          position: 'relative', cursor: 'pointer',
-          transition: 'all 0.2s',
-        }}
-      >
-        <span style={{
-          position: 'absolute', top: 2, left: value ? 18 : 2,
-          width: 12, height: 12, borderRadius: '50%',
-          background: value ? GOLD : TEXT_DIM,
-          transition: 'all 0.2s',
-        }} />
-      </button>
-    </div>
-  )
-}
-
-function MultiSelect({ label, options, selected, onChange }) {
-  const toggle = (opt) => {
-    if (selected.includes(opt)) {
-      onChange(selected.filter(s => s !== opt))
-    } else {
-      onChange([...selected, opt])
-    }
-  }
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ fontFamily: FONT_MONO, fontSize: 8, letterSpacing: '0.2em', color: GOLD_DIM, marginBottom: 8 }}>
-        {label}
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {options.map(opt => {
-          const active = selected.includes(opt)
-          return (
-            <button
-              key={opt}
-              onClick={() => toggle(opt)}
-              style={{
-                background: active ? `${GOLD}18` : 'transparent',
-                border: `1px solid ${active ? GOLD : BORDER}`,
-                color: active ? GOLD : TEXT_DIM,
-                fontFamily: FONT_MONO, fontSize: 8, letterSpacing: '0.1em',
-                padding: '4px 10px', cursor: 'pointer',
-                transition: 'all 0.15s',
-              }}
-            >
-              {opt.toUpperCase()}
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-// ── HTTP Status Badge ────────────────────────────────────────────────────────
-
 function HttpBadge({ code }) {
   const c = code >= 200 && code < 300 ? '#3ddc84'
     : code >= 400 && code < 500 ? '#e07030'
@@ -342,23 +264,19 @@ function HttpBadge({ code }) {
 function ActionBadge({ action }) {
   const colours = {
     FETCH_AND_STORE: '#3ddc84',
+    FETCH_ERROR:     '#c05050',
     RATE_LIMITED:    '#e07030',
     RETRY:          GOLD,
     BACKOFF:        GOLD_DIM,
     ERROR:          '#c05050',
     SYNC_COMPLETE:  '#64a0ff',
   }
-  const c = colours[action] || TEXT_DIM
   return (
-    <span style={{
-      fontFamily: FONT_MONO, fontSize: 8, letterSpacing: '0.1em', color: c,
-    }}>
+    <span style={{ fontFamily: FONT_MONO, fontSize: 8, letterSpacing: '0.1em', color: colours[action] || TEXT_DIM }}>
       {action}
     </span>
   )
 }
-
-// ── Toast ────────────────────────────────────────────────────────────────────
 
 function Toast({ message, type, onDismiss }) {
   const colour = type === 'success' ? '#3ddc84' : '#c05050'
@@ -381,10 +299,87 @@ function Toast({ message, type, onDismiss }) {
   )
 }
 
+// ── Dynamic Field Renderer (for /admin/settings contract) ────────────────────
+
+function DynamicField({ field, value, onChange }) {
+  const readOnly = !field.editable
+
+  const baseInput = {
+    width: '100%',
+    background: readOnly ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.25)',
+    border: `1px solid ${readOnly ? BORDER : BORDER_ACTIVE}`,
+    color: readOnly ? TEXT_DIM : TEXT,
+    fontFamily: FONT_MONO, fontSize: 11, letterSpacing: '0.04em',
+    padding: '8px 12px', outline: 'none',
+    transition: 'border-color 0.2s',
+    opacity: readOnly ? 0.7 : 1,
+  }
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontFamily: FONT_MONO, fontSize: 8, letterSpacing: '0.2em', color: GOLD_DIM, marginBottom: 5, display: 'flex', gap: 8, alignItems: 'center' }}>
+        {field.label.toUpperCase()}
+        {readOnly && <span style={{ color: TEXT_DIM }}>(READ-ONLY)</span>}
+      </div>
+
+      {field.type === 'boolean' ? (
+        <button
+          onClick={() => !readOnly && onChange(!value)}
+          disabled={readOnly}
+          style={{
+            width: 36, height: 18, borderRadius: 9,
+            background: value ? `${GOLD}44` : 'rgba(255,255,255,0.06)',
+            border: `1px solid ${value ? GOLD : BORDER}`,
+            position: 'relative', cursor: readOnly ? 'not-allowed' : 'pointer',
+            transition: 'all 0.2s', opacity: readOnly ? 0.5 : 1,
+          }}
+        >
+          <span style={{
+            position: 'absolute', top: 2, left: value ? 18 : 2,
+            width: 12, height: 12, borderRadius: '50%',
+            background: value ? GOLD : TEXT_DIM,
+            transition: 'all 0.2s',
+          }} />
+        </button>
+      ) : field.type === 'secret' ? (
+        <input type="password" value={value || ''} readOnly style={baseInput} />
+      ) : field.type === 'select' ? (
+        <select
+          value={value || ''}
+          onChange={e => onChange(e.target.value)}
+          disabled={readOnly}
+          style={baseInput}
+        >
+          {(field.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      ) : (
+        <input
+          type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+          value={value ?? ''}
+          onChange={e => {
+            if (readOnly) return
+            const v = field.type === 'number' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value
+            onChange(v)
+          }}
+          readOnly={readOnly}
+          style={baseInput}
+          onFocus={e => { if (!readOnly) e.currentTarget.style.borderColor = GOLD }}
+          onBlur={e => { if (!readOnly) e.currentTarget.style.borderColor = BORDER_ACTIVE }}
+        />
+      )}
+
+      {field.hint && (
+        <div style={{ fontFamily: FONT_MONO, fontSize: 8, color: TEXT_DIM, marginTop: 4, letterSpacing: '0.08em' }}>
+          {field.hint}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Header Strip ─────────────────────────────────────────────────────────────
 
-function HeaderStrip({ dashboard, fetchStatus, onStop, onResume, onSync }) {
-  const mode = dashboard?.status?.mode
+function HeaderStrip({ health, status, fetchStatus, onSync, onBackfillAll }) {
   const now = new Date()
   const utc = now.toISOString().replace('T', ' ').slice(0, 19) + ' UTC'
 
@@ -394,7 +389,7 @@ function HeaderStrip({ dashboard, fetchStatus, onStop, onResume, onSync }) {
       background: 'rgba(0,0,0,0.25)',
       padding: '14px 20px',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      marginBottom: 20,
+      marginBottom: 20, flexWrap: 'wrap', gap: 12,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         <div style={{
@@ -412,7 +407,7 @@ function HeaderStrip({ dashboard, fetchStatus, onStop, onResume, onSync }) {
         }}>
           Racing API Historic Ingest
         </div>
-        {fetchStatus === 'ok' && <StatusPill mode={mode} />}
+        {fetchStatus === 'ok' && <StatusPill mode={status?.mode} />}
         {fetchStatus === 'loading' && (
           <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: GOLD_DIM }}>CONNECTING...</span>
         )}
@@ -424,9 +419,8 @@ function HeaderStrip({ dashboard, fetchStatus, onStop, onResume, onSync }) {
         </span>
         {fetchStatus === 'ok' && (
           <div style={{ display: 'flex', gap: 8 }}>
-            <ActionButton label="STOP" colour="#c05050" onClick={onStop} confirm="Stop the ingest process?" />
-            <ActionButton label="RESUME" colour="#3ddc84" onClick={onResume} />
-            <ActionButton label="SYNC TODAY" colour={GOLD} onClick={onSync} />
+            <ActionButton label="SYNC" colour={GOLD} onClick={onSync} />
+            <ActionButton label="BACKFILL ALL" colour="#3ddc84" onClick={onBackfillAll} confirm="Start full coverage backfill across all endpoint groups?" />
           </div>
         )}
       </div>
@@ -436,39 +430,57 @@ function HeaderStrip({ dashboard, fetchStatus, onStop, onResume, onSync }) {
 
 // ── Status Panel ─────────────────────────────────────────────────────────────
 
-function StatusPanel({ status }) {
-  if (!status) return null
-  const healthColour = HEALTH_COLOURS[status.health] || TEXT_DIM
-  const modeColour = MODE_COLOURS[status.mode] || TEXT_DIM
+function StatusPanel({ health, status }) {
+  if (!health && !status) return null
+  const healthColour = HEALTH_COLOURS[health?.status] || TEXT_DIM
+  const modeColour = MODE_COLOURS[status?.mode] || TEXT_DIM
 
   return (
     <Panel label="SERVICE STATUS" fsu="FSU-1E">
       <div style={{ padding: 20 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-          <InfoRow label="MODE" value={status.mode || '—'} colour={modeColour} />
-          <InfoRow label="HEALTH" value={(status.health || '—').toUpperCase()} colour={healthColour} />
-          <InfoRow label="UPTIME" value={status.uptime_hours != null ? `${status.uptime_hours}h` : '—'} />
-          <InfoRow label="CURRENT TASK" value={status.current_task || '—'} colour={GOLD_LIGHT} />
-          <InfoRow label="ETA" value={status.eta || '—'} />
-          <InfoRow label="LAST ACTIVITY" value={fmtTs(status.last_activity)} colour="#3ddc84" />
+          <InfoRow label="MODE" value={(status?.mode || '—').replace(/_/g, ' ')} colour={modeColour} />
+          <InfoRow label="HEALTH" value={(health?.status || '—').toUpperCase()} colour={healthColour} />
+          <InfoRow label="UPTIME" value={health?.uptime_seconds != null ? fmtEta(health.uptime_seconds) : '—'} />
+          <InfoRow label="VERSION" value={health?.version || '—'} colour={GOLD_LIGHT} />
+          <InfoRow label="LAST ACTIVITY" value={fmtTs(status?.last_activity)} colour="#3ddc84" />
+          <InfoRow label="ERROR RATE" value={status?.error_rate != null ? `${(status.error_rate * 100).toFixed(1)}%` : '—'} colour={status?.error_rate > 0.05 ? '#e07030' : TEXT_DIM} />
         </div>
-        {status.last_error && status.last_error.timestamp && (
+
+        {/* Current progress */}
+        {status?.progress && (
+          <div style={{
+            marginTop: 16, padding: '12px 16px',
+            border: `1px solid ${BORDER}`,
+            background: 'rgba(0,0,0,0.1)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <SectionLabel>
+                CURRENT: {status.progress.current_group ? status.progress.current_group.toUpperCase() : 'BACKFILL'}
+              </SectionLabel>
+              <span style={{ fontFamily: FONT_SERIF, fontSize: 20, fontWeight: 300, color: GOLD, lineHeight: 1 }}>
+                {status.progress.percentage != null ? `${status.progress.percentage.toFixed(1)}%` : '—'}
+              </span>
+            </div>
+            <ProgressBar pct={status.progress.percentage} colour={modeColour} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, marginTop: 12 }}>
+              <InfoRow label="PROGRESS" value={`${fmtNum(status.progress.current)} / ${fmtNum(status.progress.total)}`} />
+              <InfoRow label="CURRENT ITEM" value={status.progress.current_item || '—'} colour={GOLD_LIGHT} />
+              <InfoRow label="ETA" value={fmtEta(status.progress.eta_seconds)} />
+            </div>
+          </div>
+        )}
+
+        {/* Last error */}
+        {health?.last_error && (
           <div style={{
             marginTop: 16, padding: '12px 16px',
             border: `1px solid rgba(192,80,80,0.25)`,
             background: 'rgba(192,80,80,0.05)',
           }}>
             <SectionLabel>LAST ERROR</SectionLabel>
-            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-              <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: TEXT_DIM }}>
-                {fmtTs(status.last_error.timestamp)}
-              </span>
-              {status.last_error.status_code && (
-                <HttpBadge code={status.last_error.status_code} />
-              )}
-              <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: TEXT_DIM }}>
-                Retry: {status.last_error.retry_outcome || '—'}
-              </span>
+            <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#c05050' }}>
+              {health.last_error}
             </div>
           </div>
         )}
@@ -479,273 +491,275 @@ function StatusPanel({ status }) {
 
 // ── Metrics Row ──────────────────────────────────────────────────────────────
 
-function MetricsRow({ metrics }) {
-  if (!metrics) return null
-  const errRate = metrics.api_error_rate != null ? `${(metrics.api_error_rate * 100).toFixed(1)}%` : '—'
-
+function MetricsRow({ status, stats, coverage }) {
+  const totals = coverage?.totals
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 28 }}>
       <StatTile
-        label="RECORDS DOWNLOADED"
-        value={fmtNum(metrics.records_downloaded)}
-        sub={`OF ~${fmtNum(metrics.records_estimated)} EST.`}
+        label="RECORDS PROCESSED"
+        value={fmtNum(status?.records_processed)}
+        sub={`${fmtNum(status?.errors_total || 0)} ERRORS`}
       />
       <StatTile
-        label="DAYS PROCESSED"
-        value={fmtNum(metrics.days_processed)}
-        sub={`OF ${fmtNum(metrics.days_total)} TOTAL`}
+        label="FILES IN BUCKET"
+        value={fmtNum(stats?.total_files || totals?.total_files_in_bucket)}
+        sub={stats?.date_range ? `${stats.date_range.first} → ${stats.date_range.last}` : '—'}
         colour="#3ddc84"
       />
       <StatTile
-        label="GCS OBJECTS WRITTEN"
-        value={fmtNum(metrics.gcs_objects)}
-        sub={metrics.gcs_bucket || '—'}
+        label="STORAGE SIZE"
+        value={fmtBytes(totals?.total_size_bytes)}
+        sub={totals ? `${totals.endpoints_complete || 0} GROUPS COMPLETE` : '—'}
         colour="#64a0ff"
       />
       <StatTile
-        label="API CALLS / ERRORS"
-        value={fmtNum(metrics.api_calls)}
-        sub={`${fmtNum(metrics.api_errors)} ERRORS · ${errRate}`}
-        colour={metrics.api_errors > 0 ? '#e07030' : TEXT_DIM}
+        label="GAPS DETECTED"
+        value={fmtNum(stats?.gaps_count)}
+        sub={stats?.gaps?.length > 0 ? stats.gaps.slice(0, 3).join(', ') : 'NONE'}
+        colour={stats?.gaps_count > 0 ? '#e07030' : TEXT_DIM}
       />
     </div>
   )
 }
 
-// ── Progress Panel ───────────────────────────────────────────────────────────
+// ── Coverage Panel ───────────────────────────────────────────────────────────
 
-function ProgressPanel({ progress }) {
-  if (!progress) return null
-  const pct = progress.percentage != null ? progress.percentage : 0
+function CoverageGroupRow({ group, onBackfill }) {
+  const statusColour = STATUS_COLOURS[group.status] || TEXT_DIM
+  const isDateRange = group.type === 'date_range'
+  const isEntity = group.type === 'entity'
+
+  let pct = 0
+  if (isDateRange && group.days_total > 0) pct = (group.days_done / group.days_total) * 100
+  if (isEntity && group.discovered > 0) {
+    const fetched = Math.min(group.fetched_profiles || 0, group.fetched_results || 0)
+    pct = (fetched / group.discovered) * 100
+  }
 
   return (
-    <Panel label="BACKFILL PROGRESS">
-      <div style={{ padding: 20 }}>
-        {/* Progress bar */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: TEXT_DIM }}>PROGRESS</span>
-            <span style={{ fontFamily: FONT_SERIF, fontSize: 22, fontWeight: 300, color: GOLD, lineHeight: 1 }}>
-              {pct.toFixed(1)}%
-            </span>
-          </div>
-          <div style={{ height: 6, background: 'rgba(255,255,255,0.05)', borderRadius: 1 }}>
-            <div style={{
-              height: '100%', borderRadius: 1,
-              width: `${Math.min(pct, 100)}%`,
-              background: `linear-gradient(90deg, ${GOLD_DIM}, ${GOLD})`,
-              transition: 'width 1s ease',
-              boxShadow: `0 0 8px ${GOLD}33`,
-            }} />
-          </div>
+    <div style={{
+      padding: '12px 16px',
+      borderBottom: `1px solid ${BORDER}`,
+    }}>
+      {/* Row header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontFamily: FONT_UI, fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', color: TEXT }}>
+            {group.name.toUpperCase().replace(/_/g, ' ')}
+          </span>
+          <span style={{
+            fontFamily: FONT_MONO, fontSize: 8, letterSpacing: '0.12em',
+            color: statusColour, padding: '1px 8px',
+            border: `1px solid ${statusColour}33`,
+            background: `${statusColour}11`,
+          }}>
+            {(group.status || 'unknown').replace(/_/g, ' ').toUpperCase()}
+          </span>
         </div>
-
-        {/* Date range and rate */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-          <InfoRow label="START DATE" value={fmtDate(progress.start_date)} />
-          <InfoRow label="CURRENT DATE" value={fmtDate(progress.current_date)} colour={GOLD_LIGHT} />
-          <InfoRow label="TARGET END DATE" value={fmtDate(progress.target_date)} />
-          <InfoRow label="RATE" value={`${progress.rate_actual ?? '—'} / ${progress.rate_max ?? '—'} req/s`} />
-          <InfoRow label="EST. COMPLETION" value={fmtTs(progress.est_completion)} colour="#3ddc84" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: GOLD }}>
+            {pct.toFixed(1)}%
+          </span>
+          {onBackfill && group.status !== 'complete' && (
+            <button
+              onClick={() => onBackfill(group.name)}
+              style={{
+                background: 'transparent', border: `1px solid ${BORDER}`,
+                color: GOLD_DIM, fontFamily: FONT_MONO, fontSize: 7, letterSpacing: '0.15em',
+                padding: '3px 8px', cursor: 'pointer', transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = GOLD_DIM }}
+            >
+              BACKFILL
+            </button>
+          )}
         </div>
       </div>
-    </Panel>
+
+      {/* Progress bar */}
+      <ProgressBar pct={pct} colour={statusColour} />
+
+      {/* Detail row */}
+      <div style={{ display: 'flex', gap: 20, marginTop: 8, flexWrap: 'wrap' }}>
+        {isDateRange && (
+          <>
+            <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: TEXT_DIM }}>
+              {group.earliest || '—'} → {group.latest || '—'}
+            </span>
+            <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: TEXT_DIM }}>
+              {fmtNum(group.days_done)} / {fmtNum(group.days_total)} days
+            </span>
+            {group.gaps && group.gaps.length > 0 && (
+              <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#e07030' }}>
+                {group.gaps.length} GAPS
+              </span>
+            )}
+          </>
+        )}
+        {isEntity && (
+          <>
+            <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: TEXT_DIM }}>
+              {fmtNum(group.discovered)} DISCOVERED
+            </span>
+            {Object.entries(group).filter(([k]) => k.startsWith('fetched_')).map(([k, v]) => (
+              <span key={k} style={{ fontFamily: FONT_MONO, fontSize: 9, color: TEXT_DIM }}>
+                {fmtNum(v)} {k.replace('fetched_', '').toUpperCase()}
+              </span>
+            ))}
+            {group.failed > 0 && (
+              <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: '#c05050' }}>
+                {fmtNum(group.failed)} FAILED
+              </span>
+            )}
+            <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: GOLD_DIM }}>
+              {fmtNum(group.remaining)} REMAINING
+            </span>
+          </>
+        )}
+      </div>
+    </div>
   )
 }
 
-// ── Data Coverage Panel ──────────────────────────────────────────────────────
-
-function CoveragePanel({ coverage, fetchStatus }) {
-  const [expanded, setExpanded] = useState(false)
-
+function CoveragePanel({ coverage, fetchStatus, onBackfillGroup }) {
   return (
-    <Panel label="DATA COVERAGE" status={fetchStatus}>
+    <Panel label="ENDPOINT COVERAGE" fsu="FSU-1E" status={fetchStatus}>
       {fetchStatus === 'error' && <ErrorMsg msg="Failed to load coverage data" />}
       {fetchStatus === 'loading' && (
         <div style={{ padding: 20 }}>
-          {[...Array(4)].map((_, i) => (
-            <div key={i} style={{ height: 10, borderRadius: 2, background: 'rgba(184,146,74,0.06)', width: `${50 + i * 10}%`, marginBottom: 10 }} />
+          {[...Array(6)].map((_, i) => (
+            <div key={i} style={{ height: 10, borderRadius: 2, background: 'rgba(184,146,74,0.06)', width: `${50 + i * 8}%`, marginBottom: 14 }} />
           ))}
         </div>
       )}
       {fetchStatus === 'ok' && coverage && (
-        <div style={{ padding: 20 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
-            <InfoRow label="DATE RANGE" value={`${fmtDate(coverage.earliest_date)} → ${fmtDate(coverage.latest_date)}`} />
-            <InfoRow label="REGIONS COVERED" value={fmtNum(coverage.regions_count)} />
-            <InfoRow label="BUCKET SIZE" value={coverage.bucket_size_gb != null ? `${coverage.bucket_size_gb} GB` : '—'} />
-            <InfoRow
-              label="GAPS DETECTED"
-              value={fmtNum(coverage.gaps_count)}
-              colour={coverage.gaps_count > 0 ? '#e07030' : '#3ddc84'}
-            />
-          </div>
+        <>
+          {(coverage.endpoint_groups || []).map(g => (
+            <CoverageGroupRow key={g.name} group={g} onBackfill={onBackfillGroup} />
+          ))}
 
-          {/* Records per region (collapsible) */}
-          {coverage.records_per_region && coverage.records_per_region.length > 0 && (
-            <div style={{ border: `1px solid ${BORDER}`, marginTop: 12 }}>
-              <button
-                onClick={() => setExpanded(!expanded)}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '10px 16px', background: 'rgba(0,0,0,0.15)',
-                  border: 'none', cursor: 'pointer',
-                  borderBottom: expanded ? `1px solid ${BORDER}` : 'none',
-                }}
-              >
-                <span style={{ fontFamily: FONT_MONO, fontSize: 9, letterSpacing: '0.2em', color: GOLD_DIM }}>
-                  RECORDS PER REGION
-                </span>
-                <span style={{ fontFamily: FONT_MONO, fontSize: 9, color: GOLD_DIM }}>
-                  {expanded ? '▲' : '▼'}
-                </span>
-              </button>
-              {expanded && (
-                <div style={{ padding: '8px 0' }}>
-                  {coverage.records_per_region.map(r => (
-                    <div key={r.region} style={{
-                      display: 'flex', justifyContent: 'space-between',
-                      padding: '6px 16px', borderBottom: `1px solid ${BORDER}`,
-                    }}>
-                      <span style={{ fontFamily: FONT_UI, fontSize: 11, color: TEXT }}>{r.region}</span>
-                      <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: GOLD }}>{fmtNum(r.count)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+          {/* Totals */}
+          {coverage.totals && (
+            <div style={{
+              padding: '12px 20px',
+              display: 'flex', gap: 24, flexWrap: 'wrap',
+              fontFamily: FONT_MONO, fontSize: 9, letterSpacing: '0.12em',
+            }}>
+              <span style={{ color: '#3ddc84' }}>
+                {coverage.totals.endpoints_complete || 0} COMPLETE
+              </span>
+              <span style={{ color: '#64a0ff' }}>
+                {coverage.totals.endpoints_in_progress || 0} IN PROGRESS
+              </span>
+              <span style={{ color: TEXT_DIM }}>
+                {coverage.totals.endpoints_not_started || 0} NOT STARTED
+              </span>
+              <span style={{ color: GOLD_DIM, marginLeft: 'auto' }}>
+                {fmtNum(coverage.totals.total_files_in_bucket)} FILES · {fmtBytes(coverage.totals.total_size_bytes)}
+              </span>
             </div>
           )}
-        </div>
+        </>
       )}
     </Panel>
   )
 }
 
-// ── Settings Panel ───────────────────────────────────────────────────────────
+// ── Settings Panel (dynamic from /admin/settings) ────────────────────────────
 
 function SettingsPanel({ settings, fetchStatus, onSave }) {
-  const [form, setForm] = useState(null)
+  const [formValues, setFormValues] = useState({})
+  const [originalValues, setOriginalValues] = useState({})
   const [saving, setSaving] = useState(false)
-  const [saveMsg, setSaveMsg] = useState(null)
+  const [saveResult, setSaveResult] = useState(null)
 
   useEffect(() => {
-    if (settings) {
-      setForm(JSON.parse(JSON.stringify(settings)))
-    }
+    if (!settings?.groups) return
+    const vals = {}
+    settings.groups.forEach(g => g.fields.forEach(f => { vals[f.key] = f.value }))
+    setFormValues(vals)
+    setOriginalValues(vals)
   }, [settings])
 
-  const update = (group, key, val) => {
-    setForm(prev => ({
-      ...prev,
-      [group]: { ...prev[group], [key]: val },
+  const handleChange = (key, val) => {
+    setFormValues(prev => ({ ...prev, [key]: val }))
+    setSaveResult(null)
+  }
+
+  const getChangedEditable = () => {
+    if (!settings?.groups) return {}
+    const updates = {}
+    settings.groups.forEach(g => g.fields.forEach(f => {
+      if (f.editable && formValues[f.key] !== originalValues[f.key]) {
+        updates[f.key] = formValues[f.key]
+      }
     }))
+    return updates
   }
 
   const handleSave = async () => {
+    const updates = getChangedEditable()
+    if (Object.keys(updates).length === 0) {
+      setSaveResult({ type: 'info', text: 'No changes to save' })
+      return
+    }
     setSaving(true)
-    setSaveMsg(null)
+    setSaveResult(null)
     try {
-      await onSave(form)
-      setSaveMsg({ type: 'success', text: 'Settings saved' })
+      const json = await onSave(updates)
+      setSaveResult({
+        type: 'success',
+        text: `Saved: ${(json.applied || []).join(', ')}${json.rejected?.length ? ` | Rejected: ${json.rejected.map(r => r.key || r).join(', ')}` : ''}`,
+      })
     } catch (e) {
-      setSaveMsg({ type: 'error', text: String(e) })
+      setSaveResult({ type: 'error', text: String(e) })
     }
     setSaving(false)
   }
 
   const handleCancel = () => {
-    if (settings) setForm(JSON.parse(JSON.stringify(settings)))
-    setSaveMsg(null)
+    setFormValues({ ...originalValues })
+    setSaveResult(null)
   }
 
-  const handleTestConnection = async () => {
-    setSaveMsg({ type: 'success', text: 'Testing connection...' })
-    try {
-      await apiFetch('/ui/test-connection')
-      setSaveMsg({ type: 'success', text: 'Connection successful' })
-    } catch (e) {
-      setSaveMsg({ type: 'error', text: `Connection failed: ${e}` })
-    }
-  }
-
-  if (!form) return null
-
-  const BACKFILL_ENDPOINTS = ['results', 'racecards', 'horses', 'courses', 'jockeys', 'trainers']
+  if (!settings?.groups) return null
 
   return (
-    <Panel label="SETTINGS" fsu="FSU-1E" status={fetchStatus}>
+    <Panel label="SETTINGS" fsu="FSU-1E" status={fetchStatus}
+      extra={settings.version != null && (
+        <span style={{ fontFamily: FONT_MONO, fontSize: 8, color: TEXT_DIM, letterSpacing: '0.12em' }}>
+          v{settings.version} · {fmtTs(settings.updated_at)}
+        </span>
+      )}
+    >
       <div style={{ padding: 20 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-
-          {/* API Connection */}
-          <div>
-            <SectionLabel>API CONNECTION</SectionLabel>
-            <FormInput label="BASE URL" value={form.api?.base_url} onChange={v => update('api', 'base_url', v)} mono />
-            <FormInput label="USERNAME" value={form.api?.username} readOnly mono />
-            <FormInput label="PASSWORD" value="••••••••" readOnly type="password" mono />
-            <FormInput label="AUTH METHOD" value={form.api?.auth_method} readOnly />
-            <ActionButton label="TEST CONNECTION" colour={GOLD} onClick={handleTestConnection} />
-          </div>
-
-          {/* Storage */}
-          <div>
-            <SectionLabel>STORAGE</SectionLabel>
-            <FormInput label="GCS BUCKET" value={form.storage?.gcs_bucket} onChange={v => update('storage', 'gcs_bucket', v)} mono />
-            <FormInput label="GCP PROJECT" value={form.storage?.gcp_project} readOnly mono />
-            <FormInput label="REGION" value={form.storage?.region} readOnly />
-            <FormInput label="STORAGE PATH PATTERN" value={form.storage?.path_pattern} readOnly mono />
-            <FormInput label="STORAGE TIER POLICY" value={form.storage?.storage_tier} readOnly />
-          </div>
-
-          {/* Rate Control */}
-          <div>
-            <SectionLabel>RATE CONTROL</SectionLabel>
-            <FormInput label="MAX REQUESTS/SECOND" value={form.rate?.max_rps} onChange={v => update('rate', 'max_rps', parseFloat(v) || 0)} type="number" />
-            <FormInput label="BACKOFF STRATEGY" value={form.rate?.backoff_strategy} readOnly />
-            <FormInput label="MAX RETRIES" value={form.rate?.max_retries} onChange={v => update('rate', 'max_retries', parseInt(v) || 0)} type="number" />
-          </div>
-
-          {/* Backfill Configuration */}
-          <div>
-            <SectionLabel>BACKFILL CONFIGURATION</SectionLabel>
-            <FormInput label="START DATE" value={form.backfill?.start_date} onChange={v => update('backfill', 'start_date', v)} type="date" />
-            <FormInput label="END DATE" value={form.backfill?.end_date} onChange={v => update('backfill', 'end_date', v)} type="date" />
-            <FormToggle label="SKIP EXISTING" value={form.backfill?.skip_existing} onChange={v => update('backfill', 'skip_existing', v)} />
-            <MultiSelect
-              label="ENDPOINTS TO BACKFILL"
-              options={BACKFILL_ENDPOINTS}
-              selected={form.backfill?.endpoints || []}
-              onChange={v => update('backfill', 'endpoints', v)}
-            />
-          </div>
-        </div>
-
-        {/* Sync Configuration (full width) */}
-        <div style={{ marginTop: 20, paddingTop: 20, borderTop: `1px solid ${BORDER}` }}>
-          <SectionLabel>SYNC CONFIGURATION</SectionLabel>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
-            <FormSelect
-              label="SYNC SCHEDULE"
-              value={form.sync?.schedule}
-              onChange={v => update('sync', 'schedule', v)}
-              options={['daily', 'hourly', 'manual']}
-            />
-            <FormInput label="SYNC WINDOW TIME" value={form.sync?.window_time} onChange={v => update('sync', 'window_time', v)} type="time" />
-            <FormToggle label="AUTO-START ON DEPLOY" value={form.sync?.auto_start} onChange={v => update('sync', 'auto_start', v)} />
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 24 }}>
+          {settings.groups.map(group => (
+            <div key={group.id}>
+              <SectionLabel>{group.label.toUpperCase()}</SectionLabel>
+              {group.fields.map(field => (
+                <DynamicField
+                  key={field.key}
+                  field={field}
+                  value={formValues[field.key]}
+                  onChange={v => handleChange(field.key, v)}
+                />
+              ))}
+            </div>
+          ))}
         </div>
 
         {/* Save / Cancel */}
         <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', gap: 12 }}>
           <ActionButton label={saving ? 'SAVING...' : 'SAVE'} colour="#3ddc84" onClick={handleSave} disabled={saving} />
           <ActionButton label="CANCEL" colour={TEXT_DIM} onClick={handleCancel} />
-          {saveMsg && (
+          {saveResult && (
             <span style={{
-              fontFamily: FONT_MONO, fontSize: 9, letterSpacing: '0.12em',
-              color: saveMsg.type === 'success' ? '#3ddc84' : '#c05050',
-              marginLeft: 8,
+              fontFamily: FONT_MONO, fontSize: 9, letterSpacing: '0.12em', marginLeft: 8,
+              color: saveResult.type === 'success' ? '#3ddc84' : saveResult.type === 'error' ? '#c05050' : GOLD_DIM,
             }}>
-              {saveMsg.type === 'success' ? '✓' : '✕'} {saveMsg.text}
+              {saveResult.type === 'success' ? '✓' : saveResult.type === 'error' ? '✕' : '—'} {saveResult.text}
             </span>
           )}
         </div>
@@ -756,41 +770,54 @@ function SettingsPanel({ settings, fetchStatus, onSave }) {
 
 // ── Activity Log Panel ───────────────────────────────────────────────────────
 
-function ActivityPanel({ fetchStatus }) {
-  const [entries, setEntries] = useState([])
-  const [total, setTotal]     = useState(0)
-  const [page, setPage]       = useState(1)
-  const [pages, setPages]     = useState(1)
-  const [status, setStatus]   = useState('loading')
-  const [error, setError]     = useState(null)
+function ActivityPanel({ liveEntries }) {
+  const [entries, setEntries]   = useState([])
+  const [total, setTotal]       = useState(0)
+  const [offset, setOffset]     = useState(0)
+  const [status, setStatus]     = useState('loading')
+  const [error, setError]       = useState(null)
   const [filterAction, setFilterAction] = useState('')
-  const [filterStatus, setFilterStatus] = useState('')
+  const limit = 30
 
-  const loadActivity = useCallback((p = 1) => {
+  const loadLogs = useCallback((off = 0) => {
     if (!FSU1E_URL) { setStatus('error'); setError('FSU1E not configured'); return }
     setStatus('loading')
-    let path = `/ui/activity?page=${p}&limit=30`
-    if (filterAction) path += `&action=${filterAction}`
-    if (filterStatus) path += `&status=${filterStatus}`
+    let path = `/admin/logs?limit=${limit}&offset=${off}`
     apiFetch(path)
       .then(json => {
-        const d = json.data || json
-        setEntries(d.entries || [])
-        setTotal(d.total || 0)
-        setPages(d.pages || 1)
-        setPage(p)
+        setEntries(json.entries || [])
+        setTotal(json.total || 0)
+        setOffset(off)
         setStatus('ok')
       })
       .catch(e => { setStatus('error'); setError(String(e)) })
-  }, [filterAction, filterStatus])
+  }, [])
 
-  useEffect(() => { loadActivity(1) }, [loadActivity])
+  useEffect(() => { loadLogs(0) }, [loadLogs])
 
-  const ACTION_TYPES = ['', 'FETCH_AND_STORE', 'RATE_LIMITED', 'RETRY', 'BACKOFF', 'ERROR', 'SYNC_COMPLETE']
-  const STATUS_CODES = ['', '200', '201', '400', '401', '429', '500']
+  const pages = Math.ceil(total / limit)
+  const page = Math.floor(offset / limit) + 1
+
+  const ACTION_TYPES = ['FETCH_AND_STORE', 'FETCH_ERROR']
+
+  // Merge live SSE entries at the top when on first page
+  const displayEntries = offset === 0
+    ? [...liveEntries.filter(le => !entries.find(e => e.timestamp === le.timestamp)), ...entries].slice(0, limit)
+    : entries
+
+  const filtered = filterAction
+    ? displayEntries.filter(e => e.action === filterAction)
+    : displayEntries
 
   return (
-    <Panel label="ACTIVITY LOG" fsu="FSU-1E" status={fetchStatus === 'ok' ? status : fetchStatus}>
+    <Panel label="ACTIVITY LOG" fsu="FSU-1E" status={status}
+      extra={
+        <span style={{ fontFamily: FONT_MONO, fontSize: 8, color: TEXT_DIM }}>
+          {liveEntries.length > 0 && <span style={{ color: '#3ddc84', marginRight: 8 }}>SSE LIVE</span>}
+          {fmtNum(total)} ENTRIES
+        </span>
+      }
+    >
       {/* Filters */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 16, padding: '12px 20px',
@@ -806,21 +833,10 @@ function ActivityPanel({ fetchStatus }) {
           }}
         >
           <option value="">ALL ACTIONS</option>
-          {ACTION_TYPES.filter(Boolean).map(a => <option key={a} value={a}>{a}</option>)}
-        </select>
-        <select
-          value={filterStatus}
-          onChange={e => setFilterStatus(e.target.value)}
-          style={{
-            background: 'rgba(0,0,0,0.25)', border: `1px solid ${BORDER}`,
-            color: TEXT, fontFamily: FONT_MONO, fontSize: 9, padding: '4px 8px', outline: 'none',
-          }}
-        >
-          <option value="">ALL STATUS</option>
-          {STATUS_CODES.filter(Boolean).map(s => <option key={s} value={s}>{s}</option>)}
+          {ACTION_TYPES.map(a => <option key={a} value={a}>{a}</option>)}
         </select>
         <button
-          onClick={() => loadActivity(1)}
+          onClick={() => loadLogs(0)}
           style={{
             background: 'transparent', border: `1px solid ${BORDER}`,
             color: GOLD_DIM, fontFamily: FONT_MONO, fontSize: 8, letterSpacing: '0.15em',
@@ -831,9 +847,6 @@ function ActivityPanel({ fetchStatus }) {
         >
           REFRESH
         </button>
-        <span style={{ fontFamily: FONT_MONO, fontSize: 8, color: TEXT_DIM, marginLeft: 'auto' }}>
-          {fmtNum(total)} ENTRIES
-        </span>
       </div>
 
       {/* Table */}
@@ -867,15 +880,15 @@ function ActivityPanel({ fetchStatus }) {
             {status === 'error' && (
               <tr><td colSpan={7}><ErrorMsg msg={error} /></td></tr>
             )}
-            {status === 'ok' && entries.length === 0 && (
+            {status === 'ok' && filtered.length === 0 && (
               <tr><td colSpan={7}>
                 <div style={{ padding: '32px 20px', fontFamily: FONT_MONO, fontSize: 10, letterSpacing: '0.15em', color: TEXT_DIM, textAlign: 'center' }}>
                   NO ACTIVITY ENTRIES
                 </div>
               </td></tr>
             )}
-            {status === 'ok' && entries.map((e, i) => (
-              <tr key={i} style={{
+            {status === 'ok' && filtered.map((e, i) => (
+              <tr key={`${e.timestamp}-${i}`} style={{
                 borderBottom: `1px solid ${BORDER}`,
                 background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
               }}>
@@ -894,10 +907,10 @@ function ActivityPanel({ fetchStatus }) {
                   {e.records != null ? fmtNum(e.records) : '—'}
                 </td>
                 <td style={{ padding: '9px 16px', fontFamily: FONT_MONO, fontSize: 9, color: TEXT_DIM, whiteSpace: 'nowrap' }}>
-                  {e.size_bytes != null ? `${(e.size_bytes / 1024).toFixed(1)} KB` : '—'}
+                  {e.size_bytes != null ? fmtBytes(e.size_bytes) : '—'}
                 </td>
                 <td style={{ padding: '9px 16px' }}>
-                  {e.status_code ? <HttpBadge code={e.status_code} /> : '—'}
+                  {e.status ? <HttpBadge code={e.status} /> : '—'}
                 </td>
                 <td style={{ padding: '9px 16px', fontFamily: FONT_MONO, fontSize: 9, color: TEXT_DIM, textAlign: 'right', whiteSpace: 'nowrap' }}>
                   {e.duration_ms != null ? `${e.duration_ms}ms` : '—'}
@@ -915,13 +928,13 @@ function ActivityPanel({ fetchStatus }) {
           gap: 8, padding: '12px 20px', borderTop: `1px solid ${BORDER}`,
         }}>
           <button
-            onClick={() => loadActivity(page - 1)}
-            disabled={page <= 1}
+            onClick={() => loadLogs(offset - limit)}
+            disabled={offset <= 0}
             style={{
               background: 'transparent', border: `1px solid ${BORDER}`,
-              color: page <= 1 ? TEXT_DIM : GOLD_DIM, fontFamily: FONT_MONO, fontSize: 9,
-              padding: '4px 10px', cursor: page <= 1 ? 'not-allowed' : 'pointer',
-              opacity: page <= 1 ? 0.4 : 1,
+              color: offset <= 0 ? TEXT_DIM : GOLD_DIM, fontFamily: FONT_MONO, fontSize: 9,
+              padding: '4px 10px', cursor: offset <= 0 ? 'not-allowed' : 'pointer',
+              opacity: offset <= 0 ? 0.4 : 1,
             }}
           >
             ←
@@ -930,13 +943,13 @@ function ActivityPanel({ fetchStatus }) {
             {page} / {pages}
           </span>
           <button
-            onClick={() => loadActivity(page + 1)}
-            disabled={page >= pages}
+            onClick={() => loadLogs(offset + limit)}
+            disabled={offset + limit >= total}
             style={{
               background: 'transparent', border: `1px solid ${BORDER}`,
-              color: page >= pages ? TEXT_DIM : GOLD_DIM, fontFamily: FONT_MONO, fontSize: 9,
-              padding: '4px 10px', cursor: page >= pages ? 'not-allowed' : 'pointer',
-              opacity: page >= pages ? 0.4 : 1,
+              color: offset + limit >= total ? TEXT_DIM : GOLD_DIM, fontFamily: FONT_MONO, fontSize: 9,
+              padding: '4px 10px', cursor: offset + limit >= total ? 'not-allowed' : 'pointer',
+              opacity: offset + limit >= total ? 0.4 : 1,
             }}
           >
             →
@@ -962,13 +975,15 @@ function ConfigPanel({ config, fetchStatus }) {
       )}
       {fetchStatus === 'ok' && config && (
         <div style={{ padding: 20 }}>
+          <InfoRow label="FSU ID" value={config.fsu_id || '—'} colour={GOLD_LIGHT} />
           <InfoRow label="REPO" value={config.repo || '—'} />
+          <InfoRow label="GCP PROJECT" value={config.gcp_project || '—'} />
+          <InfoRow label="REGION" value={config.region || '—'} />
+          <InfoRow label="GCS BUCKET" value={config.bucket || '—'} />
+          <InfoRow label="FIRESTORE COLLECTION" value={config.firestore_collection || '—'} />
           <InfoRow label="SERVICE ACCOUNT" value={config.service_account || '—'} />
           <InfoRow label="CLOUD RUN URL" value={config.cloud_run_url || '—'} />
           <InfoRow label="DEPLOYED AT" value={fmtTs(config.deployed_at)} />
-          <InfoRow label="BUILD VERSION" value={config.build_version || '—'} colour={GOLD_LIGHT} />
-          <InfoRow label="FIRESTORE COLLECTION" value={config.firestore_collection || '—'} />
-          <InfoRow label="SECRET MANAGER SECRET" value={config.secret_name || '—'} />
         </div>
       )}
     </Panel>
@@ -977,17 +992,22 @@ function ConfigPanel({ config, fetchStatus }) {
 
 // ── Controls Panel ───────────────────────────────────────────────────────────
 
-function ControlsPanel({ onStop, onResume, onSync, onForceBackfill, onRestart, gcsConsoleUrl }) {
-  const [backfillDate, setBackfillDate] = useState('')
+const ENDPOINT_GROUPS = [
+  'reference', 'results', 'racecards', 'race_detail',
+  'entities', 'horses', 'jockeys', 'trainers', 'owners', 'sires', 'dams', 'damsires',
+]
+
+function ControlsPanel({ onBackfillAll, onBackfillGroup, onSync, onDiscoverEntities, gcsConsoleUrl }) {
+  const [selectedGroup, setSelectedGroup] = useState('results')
 
   return (
     <Panel label="CONTROLS" fsu="FSU-1E">
       <div style={{ padding: 20 }}>
+        {/* Primary actions */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
-          <ActionButton label="STOP INGEST" colour="#c05050" onClick={onStop} confirm="Are you sure you want to stop the ingest process?" />
-          <ActionButton label="RESUME INGEST" colour="#3ddc84" onClick={onResume} />
-          <ActionButton label="SYNC TODAY" colour={GOLD} onClick={onSync} />
-          <ActionButton label="RESTART SERVICE" colour="#e07030" onClick={onRestart} confirm="Are you sure you want to restart the service?" />
+          <ActionButton label="BACKFILL ALL" colour="#3ddc84" onClick={onBackfillAll} confirm="Start full coverage backfill across all endpoint groups in dependency order?" />
+          <ActionButton label="DAILY SYNC" colour={GOLD} onClick={onSync} />
+          <ActionButton label="DISCOVER ENTITIES" colour="#64a0ff" onClick={onDiscoverEntities} confirm="Scan all results files and populate entity discovery collections?" />
           {gcsConsoleUrl && (
             <a
               href={gcsConsoleUrl}
@@ -1004,35 +1024,35 @@ function ControlsPanel({ onStop, onResume, onSync, onForceBackfill, onRestart, g
               onMouseEnter={e => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = GOLD_DIM }}
             >
-              VIEW RAW GCS BUCKET ↗
+              VIEW GCS BUCKET ↗
             </a>
           )}
         </div>
 
-        {/* Force backfill */}
+        {/* Per-group backfill */}
         <div style={{ paddingTop: 16, borderTop: `1px solid ${BORDER}` }}>
-          <SectionLabel>FORCE BACKFILL FROM DATE</SectionLabel>
+          <SectionLabel>BACKFILL SINGLE GROUP</SectionLabel>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12 }}>
-            <div style={{ flex: 1 }}>
-              <input
-                type="date"
-                value={backfillDate}
-                onChange={e => setBackfillDate(e.target.value)}
-                style={{
-                  width: '100%',
-                  background: 'rgba(0,0,0,0.25)',
-                  border: `1px solid ${BORDER_ACTIVE}`,
-                  color: TEXT, fontFamily: FONT_MONO, fontSize: 11,
-                  padding: '8px 12px', outline: 'none',
-                }}
-              />
-            </div>
+            <select
+              value={selectedGroup}
+              onChange={e => setSelectedGroup(e.target.value)}
+              style={{
+                flex: 1,
+                background: 'rgba(0,0,0,0.25)',
+                border: `1px solid ${BORDER_ACTIVE}`,
+                color: TEXT, fontFamily: FONT_MONO, fontSize: 11,
+                padding: '8px 12px', outline: 'none',
+              }}
+            >
+              {ENDPOINT_GROUPS.map(g => (
+                <option key={g} value={g}>{g.toUpperCase().replace(/_/g, ' ')}</option>
+              ))}
+            </select>
             <ActionButton
-              label="FORCE BACKFILL"
-              colour="#e07030"
-              onClick={() => onForceBackfill(backfillDate)}
-              confirm={`Force backfill from ${backfillDate}? This will re-download all data from this date forward.`}
-              disabled={!backfillDate}
+              label="START"
+              colour="#3ddc84"
+              onClick={() => onBackfillGroup(selectedGroup)}
+              confirm={`Start backfill for ${selectedGroup.toUpperCase()}?`}
             />
           </div>
         </div>
@@ -1043,7 +1063,7 @@ function ControlsPanel({ onStop, onResume, onSync, onForceBackfill, onRestart, g
 
 // ── Footer Strip ─────────────────────────────────────────────────────────────
 
-function FooterStrip({ config }) {
+function FooterStrip({ config, health }) {
   return (
     <div style={{
       border: `1px solid ${BORDER}`,
@@ -1064,9 +1084,14 @@ function FooterStrip({ config }) {
             {config.repo}
           </span>
         )}
-        {config?.build_version && (
+        {health?.version && (
           <span style={{ fontFamily: FONT_MONO, fontSize: 8, letterSpacing: '0.12em', color: TEXT_DIM }}>
-            v{config.build_version}
+            v{health.version}
+          </span>
+        )}
+        {config?.region && (
+          <span style={{ fontFamily: FONT_MONO, fontSize: 8, letterSpacing: '0.12em', color: TEXT_DIM }}>
+            {config.region}
           </span>
         )}
       </div>
@@ -1079,103 +1104,162 @@ function FooterStrip({ config }) {
 export default function FSU1E() {
   const navigate = useNavigate()
 
-  // Dashboard (status + metrics + progress) — polled
-  const [dashboard, setDashboard]     = useState(null)
-  const [dashStatus, setDashStatus]   = useState('loading')
-  const [dashError, setDashError]     = useState(null)
+  // ── State ────────────────────────────────────────────────────────────────
+  const [health, setHealth]       = useState(null)
+  const [status, setStatus]       = useState(null)
+  const [stats, setStats]         = useState(null)
+  const [coverage, setCoverage]   = useState(null)
+  const [settings, setSettings]   = useState(null)
+  const [config, setConfig]       = useState(null)
 
-  // Coverage
-  const [coverage, setCoverage]       = useState(null)
-  const [covStatus, setCovStatus]     = useState('loading')
+  const [healthFetch, setHealthFetch] = useState('loading')
+  const [statusFetch, setStatusFetch] = useState('loading')
+  const [statsFetch, setStatsFetch]   = useState('loading')
+  const [covFetch, setCovFetch]       = useState('loading')
+  const [setFetch, setSetFetch]       = useState('loading')
+  const [cfgFetch, setCfgFetch]       = useState('loading')
 
-  // Settings
-  const [settings, setSettings]       = useState(null)
-  const [setStatus, setSetStatus]     = useState('loading')
-
-  // Config reference
-  const [config, setConfig]           = useState(null)
-  const [cfgStatus, setCfgStatus]     = useState('loading')
-
-  // Toast
+  const [liveEntries, setLiveEntries] = useState([])
   const [toast, setToast]             = useState(null)
-  const showToast = (message, type = 'success') => setToast({ message, type })
+  const sseRef                        = useRef(null)
+
+  const showToast = useCallback((message, type = 'success') => setToast({ message, type }), [])
 
   // ── Fetch functions ──────────────────────────────────────────────────────
 
-  const fetchDashboard = useCallback(() => {
-    if (!FSU1E_URL) {
-      setDashStatus('error')
-      setDashError('VITE_FSU1E_URL not configured')
-      return
-    }
-    apiFetch('/ui/dashboard')
-      .then(json => {
-        setDashboard(json.data || json)
-        setDashStatus('ok')
-      })
-      .catch(e => { setDashStatus('error'); setDashError(String(e)) })
+  const fetchHealth = useCallback(() => {
+    if (!FSU1E_URL) { setHealthFetch('error'); return }
+    apiFetch('/admin/health')
+      .then(json => { setHealth(json); setHealthFetch('ok') })
+      .catch(() => setHealthFetch('error'))
+  }, [])
+
+  const fetchStatus = useCallback(() => {
+    if (!FSU1E_URL) { setStatusFetch('error'); return }
+    apiFetch('/admin/status')
+      .then(json => { setStatus(json); setStatusFetch('ok') })
+      .catch(() => setStatusFetch('error'))
+  }, [])
+
+  const fetchStats = useCallback(() => {
+    if (!FSU1E_URL) { setStatsFetch('error'); return }
+    apiFetch('/api/stats')
+      .then(json => { setStats(json); setStatsFetch('ok') })
+      .catch(() => setStatsFetch('error'))
   }, [])
 
   const fetchCoverage = useCallback(() => {
-    if (!FSU1E_URL) { setCovStatus('error'); return }
-    apiFetch('/ui/coverage')
-      .then(json => { setCoverage(json.data || json); setCovStatus('ok') })
-      .catch(() => setCovStatus('error'))
+    if (!FSU1E_URL) { setCovFetch('error'); return }
+    apiFetch('/api/coverage')
+      .then(json => { setCoverage(json); setCovFetch('ok') })
+      .catch(() => setCovFetch('error'))
   }, [])
 
   const fetchSettings = useCallback(() => {
-    if (!FSU1E_URL) { setSetStatus('error'); return }
-    apiFetch('/ui/settings')
-      .then(json => { setSettings(json.data || json); setSetStatus('ok') })
-      .catch(() => setSetStatus('error'))
+    if (!FSU1E_URL) { setSetFetch('error'); return }
+    apiFetch('/admin/settings')
+      .then(json => { setSettings(json); setSetFetch('ok') })
+      .catch(() => setSetFetch('error'))
   }, [])
 
   const fetchConfig = useCallback(() => {
-    if (!FSU1E_URL) { setCfgStatus('error'); return }
-    apiFetch('/ui/config')
-      .then(json => { setConfig(json.data || json); setCfgStatus('ok') })
-      .catch(() => setCfgStatus('error'))
+    if (!FSU1E_URL) { setCfgFetch('error'); return }
+    apiFetch('/admin/config')
+      .then(json => { setConfig(json); setCfgFetch('ok') })
+      .catch(() => setCfgFetch('error'))
   }, [])
 
-  // ── Initial load + polling ───────────────────────────────────────────────
+  // ── Initial load ─────────────────────────────────────────────────────────
 
   useEffect(() => {
-    fetchDashboard()
+    fetchHealth()
+    fetchStatus()
+    fetchStats()
     fetchCoverage()
     fetchSettings()
     fetchConfig()
-  }, [fetchDashboard, fetchCoverage, fetchSettings, fetchConfig])
+  }, [fetchHealth, fetchStatus, fetchStats, fetchCoverage, fetchSettings, fetchConfig])
+
+  // ── SSE live stream ──────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!FSU1E_URL) return
-    const interval = setInterval(fetchDashboard, 10000)
+
+    const connect = () => {
+      const es = new EventSource(`${FSU1E_URL}/admin/stream`)
+
+      es.addEventListener('status', (e) => {
+        try {
+          const data = JSON.parse(e.data)
+          setStatus(prev => prev ? { ...prev, ...data, progress: data.progress || prev.progress } : data)
+          setStatusFetch('ok')
+        } catch {}
+      })
+
+      es.addEventListener('health', (e) => {
+        try {
+          const data = JSON.parse(e.data)
+          setHealth(prev => prev ? { ...prev, ...data } : data)
+          setHealthFetch('ok')
+        } catch {}
+      })
+
+      es.addEventListener('log', (e) => {
+        try {
+          const data = JSON.parse(e.data)
+          setLiveEntries(prev => [data, ...prev].slice(0, 100))
+        } catch {}
+      })
+
+      es.onerror = () => {
+        es.close()
+        setTimeout(connect, 5000)
+      }
+
+      sseRef.current = es
+    }
+
+    connect()
+    return () => { if (sseRef.current) sseRef.current.close() }
+  }, [])
+
+  // ── Fallback polling (in case SSE disconnects) ───────────────────────────
+
+  useEffect(() => {
+    if (!FSU1E_URL) return
+    const interval = setInterval(() => {
+      fetchHealth()
+      fetchStatus()
+    }, 15000)
     return () => clearInterval(interval)
-  }, [fetchDashboard])
+  }, [fetchHealth, fetchStatus])
 
   // ── Control actions ──────────────────────────────────────────────────────
 
-  const controlAction = async (action, body) => {
+  const postAction = async (path, confirmMsg) => {
     try {
-      await apiFetch(`/ui/control/${action}`, { method: 'POST', body })
-      showToast(`${action.replace(/-/g, ' ').toUpperCase()} — command sent`)
-      setTimeout(fetchDashboard, 1000)
+      const json = await apiFetch(path, { method: 'POST' })
+      showToast(json.message || `${path} — command sent`)
+      setTimeout(() => { fetchStatus(); fetchCoverage() }, 2000)
     } catch (e) {
       showToast(`Failed: ${e}`, 'error')
     }
   }
 
-  const handleSaveSettings = async (form) => {
-    const json = await apiFetch('/ui/settings', { method: 'PUT', body: form })
-    setSettings(json.data || json)
-    showToast('Settings saved')
+  const handleSaveSettings = async (updates) => {
+    const json = await apiFetch('/admin/settings', { method: 'PUT', body: { updates } })
+    // Refresh settings from response
+    if (json.settings) {
+      fetchSettings()
+    }
+    return json
   }
 
-  // ── GCS console URL ──────────────────────────────────────────────────────
+  // ── Derived ──────────────────────────────────────────────────────────────
 
-  const bucket = dashboard?.metrics?.gcs_bucket || settings?.storage?.gcs_bucket
-  const gcsConsoleUrl = bucket
-    ? `https://console.cloud.google.com/storage/browser/${bucket}`
-    : null
+  const bucket = config?.bucket || 'fsu1e-racingapi-historic-raw'
+  const gcsConsoleUrl = `https://console.cloud.google.com/storage/browser/${bucket}?project=${config?.gcp_project || 'chiops'}`
+  const combinedFetch = healthFetch === 'ok' || statusFetch === 'ok' ? 'ok' : healthFetch === 'error' && statusFetch === 'error' ? 'error' : 'loading'
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -1202,22 +1286,22 @@ export default function FSU1E() {
 
       {/* Header strip */}
       <HeaderStrip
-        dashboard={dashboard}
-        fetchStatus={dashStatus}
-        onStop={() => controlAction('stop')}
-        onResume={() => controlAction('resume')}
-        onSync={() => controlAction('sync-today')}
+        health={health}
+        status={status}
+        fetchStatus={combinedFetch}
+        onSync={() => postAction('/api/sync')}
+        onBackfillAll={() => postAction('/api/backfill/all')}
       />
 
       {/* Error state — show if FSU not configured */}
-      {dashStatus === 'error' && (
+      {!FSU1E_URL && (
         <Panel label="RACING API HISTORIC INGEST" fsu="FSU-1E" status="error">
-          <ErrorMsg msg={dashError} />
+          <ErrorMsg msg="VITE_FSU1E_URL not configured" />
         </Panel>
       )}
 
       {/* Loading state */}
-      {dashStatus === 'loading' && (
+      {FSU1E_URL && combinedFetch === 'loading' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 28 }}>
           {[...Array(4)].map((_, i) => (
             <div key={i} style={{ border: `1px solid ${BORDER}`, padding: '16px 20px', height: 100 }}>
@@ -1229,27 +1313,29 @@ export default function FSU1E() {
       )}
 
       {/* Live data panels */}
-      {dashStatus === 'ok' && dashboard && (
+      {FSU1E_URL && combinedFetch !== 'loading' && (
         <>
-          <StatusPanel status={dashboard.status} />
-          <MetricsRow metrics={dashboard.metrics} />
-          <ProgressPanel progress={dashboard.progress} />
+          <StatusPanel health={health} status={status} />
+          <MetricsRow status={status} stats={stats} coverage={coverage} />
         </>
       )}
 
-      <CoveragePanel coverage={coverage} fetchStatus={covStatus} />
-      <SettingsPanel settings={settings} fetchStatus={setStatus} onSave={handleSaveSettings} />
-      <ActivityPanel fetchStatus={dashStatus} />
-      <ConfigPanel config={config} fetchStatus={cfgStatus} />
+      <CoveragePanel
+        coverage={coverage}
+        fetchStatus={covFetch}
+        onBackfillGroup={(group) => postAction(`/api/backfill/${group}`)}
+      />
+      <SettingsPanel settings={settings} fetchStatus={setFetch} onSave={handleSaveSettings} />
+      <ActivityPanel liveEntries={liveEntries} />
+      <ConfigPanel config={config} fetchStatus={cfgFetch} />
       <ControlsPanel
-        onStop={() => controlAction('stop')}
-        onResume={() => controlAction('resume')}
-        onSync={() => controlAction('sync-today')}
-        onForceBackfill={(date) => controlAction('force-backfill', { from_date: date })}
-        onRestart={() => controlAction('restart')}
+        onBackfillAll={() => postAction('/api/backfill/all')}
+        onBackfillGroup={(group) => postAction(`/api/backfill/${group}`)}
+        onSync={() => postAction('/api/sync')}
+        onDiscoverEntities={() => postAction('/api/discover-entities')}
         gcsConsoleUrl={gcsConsoleUrl}
       />
-      <FooterStrip config={config} />
+      <FooterStrip config={config} health={health} />
     </div>
   )
 }

@@ -72,11 +72,11 @@ export default function Layout() {
             display: 'flex', flexDirection: 'column',
             alignItems: collapsed ? 'center' : 'flex-start',
           }}>
-            <svg width="28" height="28" viewBox="0 0 52 52" fill="none" style={{ flexShrink: 0 }}>
-              <polygon points="26,4 48,40 4,40" stroke={GOLD} strokeWidth="1.4" fill="none"/>
-              <polygon points="26,14 40,38 12,38" stroke={GOLD_DIM} strokeWidth="0.9" fill="none"/>
-              <circle cx="26" cy="26" r="3" fill={GOLD}/>
-            </svg>
+            <img
+              src="/chimera-logo.png"
+              alt="Chimera"
+              style={{ height: collapsed ? 34 : 44, width: 'auto', flexShrink: 0, objectFit: 'contain' }}
+            />
             {!collapsed && (
               <div style={{ marginTop: 10 }}>
                 <div style={{
